@@ -103,7 +103,9 @@ if __name__ == "__main__":
         runid = '2021-03-18'
         jobid = 0
         njobs = 1
-
+        submi = 0
+        submimax = 1
+        
     root = os.path.join("/rds", "general", "user", "bdobson", "home", "cwsd_sewer","data")
     catchment = "cranbrook"
     clusters_root = os.path.join(root,catchment,"results",runid)
