@@ -14,7 +14,7 @@ from shapely.geometry import Point, LineString
 from shutil import copyfile, rmtree
 import sys
 from glob import glob
-
+#Check that aggregations have been performed properly
 if __name__ == "__main__":
     
     if len(sys.argv) > 1:
