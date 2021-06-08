@@ -1,5 +1,5 @@
 #PBS -lselect=1:ncpus=1:mem=96gb
-#PBS -lwalltime=72:00:00
+#PBS -lwalltime=60:00:00
 #PBS -J 0-49
 
 # subjob's index within the array
@@ -17,6 +17,6 @@ cd $PBS_O_WORKDIR
 
 # Run program, passing the index of this subjob within the array
 
-python simulate_cmd.py 2021-05-21 $PBS_ARRAY_INDEX 50 3 4
+python aggregate_cmd.py 2021-05-21 $PBS_ARRAY_INDEX 50 3 4
 
 
