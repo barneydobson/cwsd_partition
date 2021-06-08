@@ -405,7 +405,8 @@ if __name__ == "__main__":
     root = os.path.join("/rds","general","user","bdobson", "home", "cwsd_sewer","data")
     catchment = "cranbrook"
     sim_root = os.path.join(root,catchment,"results",runid)
-    dts = [5,10,20,50,100,300,1440,2,1,0.5]
+    dts = [1]
+    # dts = [5,10,20,50,100,300,1440,2,1,0.5]
     # dts = [1000,1440]
     clusters = sorted(glob(os.path.join(sim_root,"*","*.geojson")))
  

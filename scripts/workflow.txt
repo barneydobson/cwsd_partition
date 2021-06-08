@@ -1,0 +1,31 @@
+Add infoworks data export file and shapefiles (Nodes.shp and Links.shp) to:
+.data/<catchment>/raw
+
+Run preprocessing to prepare clean network data:
+
+   To create nodes_clean and edges_clean (note, this may need editing depending on the infoworks export format and how messy the InfoWorks model is!!):
+   ./scripts/preprocessing/clean_from_infoworks.py
+
+   Check if infoworks data makes sense, there was a bunch of missing information in the export for us - used InfoWorks simulations to fill missing information only:
+   ./scripts/preprocessing/check_converted_infoworks.py
+
+   The output of this is 'edges_clean.geojson' and 'nodes_clean.geojson', we provide an example in ./data/Cranbrook/processed
+
+To create clusters (produces ./data/results/<date>/clusters.geojson) for :
+./scripts/preprocessing/run_partitions.py
+
+To aggregate cluster categorisation into compartments for simulation:
+./scripts/preprocessing/aggregate_cmd.py
+
+Run simulations for all clusters in ./data/results/<date>/clusters.geojson:
+./scripts/orchestration/simulate_cmd.py
+
+Run comparison for a single simulation:
+./scripts/postprocessing/simple_eval.py
+./scripts/postprocessing/system_eval.py
+
+Calculate performance metrics for multiple simulations
+./scripts/postprocessing/nse_cmd.py
+
+Run comparison across algorithms/timesteps/number of compartments:
+./scripts/postprocessing/preserved_comparison.py
