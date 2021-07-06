@@ -7,6 +7,7 @@ Created on Fri Jan 22 08:08:18 2021
 import constants
 from random import shuffle
 from numpy import isnan
+from tqdm import tqdm
 #Contains all code required to simulate a partitioned CWSD sewer network
 class model:
     """Class that contains cwsd nodes and arcs with functions to add them from generic databases
@@ -156,7 +157,7 @@ class model:
         storages = []
         flood_vol = []
         depth = []
-        for date in self.dates:
+        for date in tqdm(self.dates):
             #Update time
             for node in self.model_nodes.values():
                 node.date = date
