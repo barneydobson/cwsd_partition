@@ -31,22 +31,22 @@ if __name__ == "__main__":
     sim_root = os.path.join(root,catchment,"results",runid)
     dts = [0.5,1,2,5,10,20,50,100,300,1440]
     # dts = [1000,1440]
-    clusters = sorted(glob(os.path.join(sim_root,"*","*.geojson")))
+    partitions = sorted(glob(os.path.join(sim_root,"*","*.geojson")))
  
     files = []
     roots = []
     print('generating job scheduler')
-    for cluster in clusters:
-          cols = gpd.read_file(cluster).columns
+    for partition in partitions:
+          cols = gpd.read_file(partition).columns
           
-          cols = cols[cols.str.contains('cluster')]
+          cols = cols[cols.str.contains('partition')]
           for col in cols:
               if "L_L_sc" in col:
                   dts_ = dts
               else:
                   dts_ = [1]
               for dt in dts_:
-                  fid = os.path.join(os.path.split(cluster)[0],
+                  fid = os.path.join(os.path.split(partition)[0],
                                          col,
                                          '_'.join(['sim_dt',str(int(dt*60)),'s']))
                   roots.append(fid)
