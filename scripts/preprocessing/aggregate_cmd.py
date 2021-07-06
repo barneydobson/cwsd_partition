@@ -16,11 +16,12 @@ import sys
 from glob import glob
 
 def aggregate(root: str,
-              cluster_root: str,
-              cluster: str,
+              partition_root: str,
+              partition: str,
               catchment: str = "cranbrook",
-              dt_sim = 5):
-    """ Aggregates clusters into compartments.
+              dt_sim = 5,
+              demo = False):
+    """ Aggregates partitions into compartments.
         Paremeters: catchment can be "cranbrook" or "norwich"
         Returns a file 
     """
@@ -45,32 +46,38 @@ def aggregate(root: str,
     """
     data_root = os.path.join(root, catchment,"processed")
     raw_root = os.path.join(root, catchment,"raw")
-    
-    edges_fid = os.path.join(data_root,"edges_clean.geojson")
+    if not demo:
+        edges_fid = os.path.join(data_root,"edges_clean.geojson")
+    else:
+        edges_fid = os.path.join(data_root,"edges_gdf_scrambled.geojson")
     edges_gdf = gpd.read_file(edges_fid)
     edges_gdf.capacity = edges_gdf.capacity.astype(float)
     
-    nodes_fid = os.path.join(cluster_root,"clusters.geojson")
+    nodes_fid = os.path.join(partition_root,"partitions.geojson")
     nodes_gdf = gpd.read_file(nodes_fid).rename(columns={'area' : 'surf_area'})
 
     info_dir = "info_sims"
     info_dir = os.path.join(raw_root,info_dir)    
     
-    #InfoWorks node simulation for initial storage only    
-    rain = "january"
-    info_volume_fid = os.path.join(info_dir,rain, "volume.csv")
-    info_volume_df = pd.read_csv(info_volume_fid)
-    del nodes_fid, edges_fid, info_volume_fid
+    if not demo:
+        #InfoWorks node simulation for initial storage only    
+        rain = "january"
+        info_volume_fid = os.path.join(info_dir,rain, "volume.csv")
+        info_volume_df = pd.read_csv(info_volume_fid)
+    del nodes_fid, edges_fid
         
     edges_gdf['travel_time'] = 0
     ind = edges_gdf.capacity > 0
     edges_gdf.loc[ind,'travel_time'] = edges_gdf.loc[ind,'length'] * edges_gdf.loc[ind, 'cross_sec'] / edges_gdf.loc[ind,'capacity'] #s
     edges_gdf.capacity *= M3_S_TO_M3_DT
     
-    """Manual corrections
-    """   
-    nodes_gdf = nodes_gdf.set_index('node_id').join(info_volume_df.iloc[0]).rename(columns={info_volume_df.iloc[0].name : 'initial_storage'}).reset_index()
-    nodes_gdf.initial_storage = nodes_gdf.initial_storage.fillna(0)
+    """Initial storage
+    """
+    if not demo:
+        nodes_gdf = nodes_gdf.set_index('node_id').join(info_volume_df.iloc[0]).rename(columns={info_volume_df.iloc[0].name : 'initial_storage'}).reset_index()
+        nodes_gdf.initial_storage = nodes_gdf.initial_storage.fillna(0)
+    else:
+        nodes_gdf['initial_storage'] = 0
     # nodes_gdf.storage = nodes_gdf.storage - nodes_gdf.initial_storage
     # nodes_gdf = nodes_gdf.drop('initial_storage', axis=1)
     
@@ -79,26 +86,26 @@ def aggregate(root: str,
     edges_gdf['storage'] = edges_gdf['length'] * edges_gdf['cross_sec']
 
     
-    for cluster_type in [cluster]:
+    for partition_type in [partition]:
         
-        cluster_folder = os.path.join(cluster_root, cluster_type)
-        if not os.path.exists(cluster_folder):
-            os.mkdir(cluster_folder)
-        cluster_folder = os.path.join(cluster_folder, "_".join(["sim","dt",str(int(DT_SIM.total_seconds())),"s"]))
-        if not os.path.exists(cluster_folder):
-            os.mkdir(cluster_folder)
+        partition_folder = os.path.join(partition_root, partition_type)
+        if not os.path.exists(partition_folder):
+            os.mkdir(partition_folder)
+        partition_folder = os.path.join(partition_folder, "_".join(["sim","dt",str(int(DT_SIM.total_seconds())),"s"]))
+        if not os.path.exists(partition_folder):
+            os.mkdir(partition_folder)
         
         
-        edges_cluster = pd.merge(edges_gdf, nodes_gdf[['node_id',cluster_type]],left_on='us_node_id',right_on='node_id')
-        edges_cluster = edges_cluster.drop('node_id',axis=1).rename(columns={cluster_type : 'start_comp'})
+        edges_partition = pd.merge(edges_gdf, nodes_gdf[['node_id',partition_type]],left_on='us_node_id',right_on='node_id')
+        edges_partition = edges_partition.drop('node_id',axis=1).rename(columns={partition_type : 'start_comp'})
         
-        edges_cluster = pd.merge(edges_cluster, nodes_gdf[['node_id',cluster_type]],left_on='ds_node_id',right_on='node_id')
-        edges_cluster = edges_cluster.drop('node_id',axis=1).rename(columns={cluster_type : 'end_comp'})
+        edges_partition = pd.merge(edges_partition, nodes_gdf[['node_id',partition_type]],left_on='ds_node_id',right_on='node_id')
+        edges_partition = edges_partition.drop('node_id',axis=1).rename(columns={partition_type : 'end_comp'})
                 
-        ind = edges_cluster.end_comp == edges_cluster.start_comp
+        ind = edges_partition.end_comp == edges_partition.start_comp
         
-        edges_cluster.loc[ind, 'compart_id'] = edges_cluster.loc[ind, 'start_comp']
-        edges_between = edges_cluster.loc[~ind]
+        edges_partition.loc[ind, 'compart_id'] = edges_partition.loc[ind, 'start_comp']
+        edges_between = edges_partition.loc[~ind]
         
         """Aggregate nodes to compartment
         """
@@ -112,10 +119,10 @@ def aggregate(root: str,
             d['chamber_ar'] = x['chamber_ar'].sum()
             
             return pd.Series(d)
-        compartment_nodes = nodes_gdf.groupby(cluster_type).apply(f).reset_index().rename(columns={cluster_type : 'compart_id'})
+        compartment_nodes = nodes_gdf.groupby(partition_type).apply(f).reset_index().rename(columns={partition_type : 'compart_id'})
 
         #Add in pipe storage
-        pipe_stor = edges_cluster.groupby('compart_id').sum().storage.reset_index()
+        pipe_stor = edges_partition.groupby('compart_id').sum().storage.reset_index()
         compartment_nodes = pd.merge(compartment_nodes, pipe_stor.rename(columns={'storage':'pipe_stor'}), on = 'compart_id', how="outer")
         compartment_nodes.pipe_stor = compartment_nodes.pipe_stor.fillna(0)
         compartment_nodes['storage'] = compartment_nodes[['node_stor','pipe_stor']].sum(axis=1)
@@ -148,9 +155,9 @@ def aggregate(root: str,
         for compart_id in compartment_nodes.compart_id:
             in_elev = None
             out_elev = None
-            nodes_in_compartment = nodes_gdf.loc[nodes_gdf[cluster_type] == compart_id].set_index('node_id')
-            edges_in_compartment = edges_cluster.loc[edges_cluster.start_comp == compart_id]
-            edges_in_compartment_ = edges_cluster.loc[edges_cluster.end_comp == compart_id]
+            nodes_in_compartment = nodes_gdf.loc[nodes_gdf[partition_type] == compart_id].set_index('node_id')
+            edges_in_compartment = edges_partition.loc[edges_partition.start_comp == compart_id]
+            edges_in_compartment_ = edges_partition.loc[edges_partition.end_comp == compart_id]
             if edges_in_compartment.size > 0:
                 outfalls = edges_between.loc[edges_between.info_id.isin(edges_in_compartment.info_id)].copy()
                 if out_elev is None:
@@ -218,7 +225,7 @@ def aggregate(root: str,
                 compartment_nodes.at[compart_index, "timearea"] = timearea_outflow.normalised.to_dict() #Use a dict because can be stored in geojson
                 compartment_nodes.at[compart_index, "timearea_pipe"] = timearea_pipe_flow.normalised.to_dict() #Use a dict because can be stored in geojson
                 compartment_nodes.at[compart_index, "timearea_surface"] = timearea_surface_runoff.normalised.to_dict() #Use a dict because can be stored in geojson
-                entry_nodes = edges_cluster.loc[(edges_cluster.end_comp == compart_id) & (edges_cluster.start_comp != compart_id), 'ds_node_id'].values
+                entry_nodes = edges_partition.loc[(edges_partition.end_comp == compart_id) & (edges_partition.start_comp != compart_id), 'ds_node_id'].values
                 entry_nodes = timeareas.index.intersection(entry_nodes) #Only count time from nodes that are physically connected to outfalls
                 if entry_nodes.size > 0:
                     compartment_nodes.at[compart_index, "pipe_time"] = timeareas.loc[entry_nodes, 'pipe_time'].mean() * S_TO_DT
@@ -241,7 +248,7 @@ def aggregate(root: str,
         """Calculate upstreamness
         """
         #Assign upstreamness
-        outfall_ind = nodes_gdf.loc[nodes_gdf.node_type == 'Outfall',cluster_type].values
+        outfall_ind = nodes_gdf.loc[nodes_gdf.node_type == 'Outfall',partition_type].values
         upstreamness = {x : 0 for x in compartment_nodes.loc[outfall_ind].index.tolist()}
         
         def assign_upstream(links, upstreamness):
@@ -264,128 +271,128 @@ def aggregate(root: str,
         
         fid = __file__
         fn = os.path.basename(fid)
-        copyfile(fid, os.path.join(cluster_folder, fn))
+        copyfile(fid, os.path.join(partition_folder, fn))
         
         """Write Compartments
         """
-        gpd.GeoDataFrame(compartment_nodes, crs=CRS).to_file(driver = driver, filename= os.path.join(cluster_folder,"compartment_nodes" + extension))
-        gpd.GeoDataFrame(edges_between, crs=CRS).to_file(driver = driver, filename= os.path.join(cluster_folder,"compartment_edges" + extension))
+        gpd.GeoDataFrame(compartment_nodes, crs=CRS).to_file(driver = driver, filename= os.path.join(partition_folder,"compartment_nodes" + extension))
+        gpd.GeoDataFrame(edges_between, crs=CRS).to_file(driver = driver, filename= os.path.join(partition_folder,"compartment_edges" + extension))
                 
         #Front bit of this could definitely be done out of the loop
         """Aggregate detailed results to compartments
         """
+        if not demo:
+            for rain in sim_rains:
+                rain_folder = os.path.join(partition_folder, rain)
+                if not os.path.exists(rain_folder):
+                    os.mkdir(rain_folder)
+                
+                #I've removed 'floodloss' for now because it's constantly 0
+                info_node = {'floodvol' : os.path.join(raw_root,info_dir, rain,"floodvolume.csv"),
+                                  'depth' : os.path.join(raw_root,info_dir, rain, "depnod.csv"),
+                                  'volume' : os.path.join(raw_root,info_dir, rain, "volume.csv")}
+                info_flow = os.path.join(raw_root,info_dir,rain,"ds_flow.csv")
+                
+                def load_info(fid, type_):
+                    temp_df = pd.read_csv(fid)
+                    try:
+                        temp_df.index = pd.to_datetime(temp_df.Time, format = "%d/%m/%Y %H:%M:%S")
+                    except:
+                        temp_df.index = pd.to_datetime(temp_df.Time.replace({'00/00/0000' : sim_start,
+                                                                             '01/00/0000' : sim_start[0:8] + '02'},
+                                                                            regex=True))
+                    temp_df.index.name = 'time'
+                    temp_df = temp_df.drop(['Time', 'Seconds'], axis=1)
+                    
+                    temp_df = temp_df.resample(DT_RAW).mean()
+                    if type_ == 'arc':
+                        temp_df = temp_df.mul(DT_RAW / DT_ARC) # convert from mean over DT to total over DT
+                        if DT_SIM < DT_RAW:
+                            temp_df = temp_df.resample(DT_SIM,label='right').interpolate(limit = int(DT_RAW/DT_SIM))*(DT_SIM/DT_RAW)
+                        else:
+                            temp_df = temp_df.resample(DT_SIM,label='right').sum(min_count = 1)
+                    elif type_ == 'node_id':
+                        if DT_SIM < DT_RAW:
+                            temp_df = temp_df.resample(DT_SIM,label='right').interpolate(limit = int(DT_RAW/DT_SIM))
+                        else:
+                            temp_df = temp_df.resample(DT_SIM,label='right').mean()
+                    
+                    # temp_df = temp_df.astype(float16) # unstacking the larger datasets is pretty heavyweight
     
-        for rain in sim_rains:
-            rain_folder = os.path.join(cluster_folder, rain)
-            if not os.path.exists(rain_folder):
-                os.mkdir(rain_folder)
-            
-            #I've removed 'floodloss' for now because it's constantly 0
-            info_node = {'floodvol' : os.path.join(raw_root,info_dir, rain,"floodvolume.csv"),
-                              'depth' : os.path.join(raw_root,info_dir, rain, "depnod.csv"),
-                              'volume' : os.path.join(raw_root,info_dir, rain, "volume.csv")}
-            info_flow = os.path.join(raw_root,info_dir,rain,"ds_flow.csv")
-            
-            def load_info(fid, type_):
-                temp_df = pd.read_csv(fid)
-                try:
-                    temp_df.index = pd.to_datetime(temp_df.Time, format = "%d/%m/%Y %H:%M:%S")
-                except:
-                    temp_df.index = pd.to_datetime(temp_df.Time.replace({'00/00/0000' : sim_start,
-                                                                         '01/00/0000' : sim_start[0:8] + '02'},
-                                                                        regex=True))
-                temp_df.index.name = 'time'
-                temp_df = temp_df.drop(['Time', 'Seconds'], axis=1)
+                    return temp_df
                 
-                temp_df = temp_df.resample(DT_RAW).mean()
-                if type_ == 'arc':
-                    temp_df = temp_df.mul(DT_RAW / DT_ARC) # convert from mean over DT to total over DT
-                    if DT_SIM < DT_RAW:
-                        temp_df = temp_df.resample(DT_SIM,label='right').interpolate(limit = int(DT_RAW/DT_SIM))*(DT_SIM/DT_RAW)
-                    else:
-                        temp_df = temp_df.resample(DT_SIM,label='right').sum(min_count = 1)
-                elif type_ == 'node_id':
-                    if DT_SIM < DT_RAW:
-                        temp_df = temp_df.resample(DT_SIM,label='right').interpolate(limit = int(DT_RAW/DT_SIM))
-                    else:
-                        temp_df = temp_df.resample(DT_SIM,label='right').mean()
+                #Load and convert flow data
+                flow_df = load_info(info_flow,'arc')
+                flow_df = flow_df[flow_df.columns.intersection(edges_gdf.info_id)]
                 
-                # temp_df = temp_df.astype(float16) # unstacking the larger datasets is pretty heavyweight
-
-                return temp_df
+                compart_flows = flow_df[flow_df.columns.intersection(edges_between.info_id)].unstack().reset_index().rename(columns={'level_0' : 'arc', 0 : 'val', 'Seconds' : 'time'})
             
-            #Load and convert flow data
-            flow_df = load_info(info_flow,'arc')
-            flow_df = flow_df[flow_df.columns.intersection(edges_gdf.info_id)]
-            
-            compart_flows = flow_df[flow_df.columns.intersection(edges_between.info_id)].unstack().reset_index().rename(columns={'level_0' : 'arc', 0 : 'val', 'Seconds' : 'time'})
-        
-            #Write flows between compartments
-            compart_flows = pd.merge(edges_between[['start_comp','end_comp','info_id']], compart_flows, left_on ="info_id", right_on="arc")
-            
-            #Remove between compartment flows and add to node volumes
-            internal_flows = flow_df[flow_df.columns[~flow_df.columns.isin(compart_flows.info_id.unique())]]
-            internal_nodes = edges_gdf.loc[edges_gdf.info_id.isin(internal_flows.columns), 'us_node_id'].unique()
-            node_flows = pd.DataFrame(index = internal_flows.index, 
-                                      columns = internal_nodes,
-                                      data = zeros((internal_flows.shape[0], len(internal_nodes))))
-            
-            for arc in internal_flows.columns.intersection(flow_df.columns):
-                cap = edges_gdf.loc[edges_gdf.info_id == arc,'capacity'].values[0]
-                full_storage = edges_gdf.loc[edges_gdf.info_id == arc,['length','cross_sec']].prod(axis=1).values[0]
-                if cap == 0:
-                    pct_full = pd.Series(index = internal_flows.index,
-                                         data = zeros(internal_flows.shape[0]))
-                    pct_full.loc[internal_flows[arc] > cap] = 1
-                else:
-                    pct_full = internal_flows[arc] / cap
-                    pct_full.loc[pct_full > 1] = 1
-                pipe_s = (pct_full * full_storage).abs()
-                us_node = edges_gdf.loc[edges_gdf.info_id == arc,'us_node_id'].values[0]
-                node_flows[us_node] += pipe_s
-
-            compartments = nodes_gdf[cluster_type].unique()
-            compartment_nodes = []
-            for key in info_node.keys():
-                node_df = load_info(info_node[key],'node_id')
-                if key == 'volume':
-                    node_df = node_df.add(node_flows, fill_value = 0)
-                elif (key == 'floodvol') | (key == 'depth'):
-                    #if floodvol < 0 then that means avaiable capacity
-                    #no idea what negative depth means... best avoided
-                    node_df = node_df.clip(lower = 0) 
-                    
-                compart_node = pd.DataFrame(columns = compartments, 
-                                         index = node_flows.index, 
-                                         data = zeros((node_flows.shape[0], len(compartments))))
-                compart_node[:] = NaN
-                for cid in compartments:
-                    nodes = nodes_gdf.loc[nodes_gdf[cluster_type] == cid, 'node_id'].values
-                    nodes = set(nodes).intersection(node_df.columns)
-                    if key in ['volume','floodvol']:
-                        compart_node[cid] = node_df[nodes].sum(axis=1, min_count=1)
-                    elif key == 'depth':
-                        compart_node[cid] = node_df[nodes].mean(axis=1)
-                    
-                compart_node = compart_node.unstack().reset_index().rename(columns={'level_0' : cluster_type, 0 : key})
-                compartment_nodes.append(compart_node)
-            compartment_nodes_ = pd.concat(compartment_nodes, axis=1)
-            compartment_nodes_ = compartment_nodes_.loc[:,~compartment_nodes_.columns.duplicated()]
-       
-            """Write aggregated results
-            """
-            comparison_arcs = pd.read_csv(os.path.join(cluster_root, "comparison_arcs.csv"))
-            comparison_nodes = pd.read_csv(os.path.join(cluster_root, "comparison_nodes.csv"))
-            
-            compart_flows = compart_flows.loc[compart_flows.arc.isin(comparison_arcs.info_id)]
-            compart_flows.to_parquet(os.path.join(rain_folder,"highfid_flows.gzip"), index=True, compression='GZIP')
-            
-            node_lookup = nodes_gdf[[cluster_type,'node_id']].drop_duplicates()
-            node_lookup = node_lookup.loc[node_lookup.node_id.isin(comparison_nodes.node_id)]
-            
-            compartment_nodes_ = compartment_nodes_.loc[compartment_nodes_[cluster_type].isin(node_lookup[cluster_type])]
-            compartment_nodes_.to_parquet(os.path.join(rain_folder,"highfid_nodes.gzip"), index=True, compression='GZIP')
-       
+                #Write flows between compartments
+                compart_flows = pd.merge(edges_between[['start_comp','end_comp','info_id']], compart_flows, left_on ="info_id", right_on="arc")
+                
+                #Remove between compartment flows and add to node volumes
+                internal_flows = flow_df[flow_df.columns[~flow_df.columns.isin(compart_flows.info_id.unique())]]
+                internal_nodes = edges_gdf.loc[edges_gdf.info_id.isin(internal_flows.columns), 'us_node_id'].unique()
+                node_flows = pd.DataFrame(index = internal_flows.index, 
+                                          columns = internal_nodes,
+                                          data = zeros((internal_flows.shape[0], len(internal_nodes))))
+                
+                for arc in internal_flows.columns.intersection(flow_df.columns):
+                    cap = edges_gdf.loc[edges_gdf.info_id == arc,'capacity'].values[0]
+                    full_storage = edges_gdf.loc[edges_gdf.info_id == arc,['length','cross_sec']].prod(axis=1).values[0]
+                    if cap == 0:
+                        pct_full = pd.Series(index = internal_flows.index,
+                                             data = zeros(internal_flows.shape[0]))
+                        pct_full.loc[internal_flows[arc] > cap] = 1
+                    else:
+                        pct_full = internal_flows[arc] / cap
+                        pct_full.loc[pct_full > 1] = 1
+                    pipe_s = (pct_full * full_storage).abs()
+                    us_node = edges_gdf.loc[edges_gdf.info_id == arc,'us_node_id'].values[0]
+                    node_flows[us_node] += pipe_s
+    
+                compartments = nodes_gdf[partition_type].unique()
+                compartment_nodes = []
+                for key in info_node.keys():
+                    node_df = load_info(info_node[key],'node_id')
+                    if key == 'volume':
+                        node_df = node_df.add(node_flows, fill_value = 0)
+                    elif (key == 'floodvol') | (key == 'depth'):
+                        #if floodvol < 0 then that means avaiable capacity
+                        #no idea what negative depth means... best avoided
+                        node_df = node_df.clip(lower = 0) 
+                        
+                    compart_node = pd.DataFrame(columns = compartments, 
+                                             index = node_flows.index, 
+                                             data = zeros((node_flows.shape[0], len(compartments))))
+                    compart_node[:] = NaN
+                    for cid in compartments:
+                        nodes = nodes_gdf.loc[nodes_gdf[partition_type] == cid, 'node_id'].values
+                        nodes = set(nodes).intersection(node_df.columns)
+                        if key in ['volume','floodvol']:
+                            compart_node[cid] = node_df[nodes].sum(axis=1, min_count=1)
+                        elif key == 'depth':
+                            compart_node[cid] = node_df[nodes].mean(axis=1)
+                        
+                    compart_node = compart_node.unstack().reset_index().rename(columns={'level_0' : partition_type, 0 : key})
+                    compartment_nodes.append(compart_node)
+                compartment_nodes_ = pd.concat(compartment_nodes, axis=1)
+                compartment_nodes_ = compartment_nodes_.loc[:,~compartment_nodes_.columns.duplicated()]
+           
+                """Write aggregated results
+                """
+                comparison_arcs = pd.read_csv(os.path.join(partition_root, "comparison_arcs.csv"))
+                comparison_nodes = pd.read_csv(os.path.join(partition_root, "comparison_nodes.csv"))
+                
+                compart_flows = compart_flows.loc[compart_flows.arc.isin(comparison_arcs.info_id)]
+                compart_flows.to_parquet(os.path.join(rain_folder,"highfid_flows.gzip"), index=True, compression='GZIP')
+                
+                node_lookup = nodes_gdf[[partition_type,'node_id']].drop_duplicates()
+                node_lookup = node_lookup.loc[node_lookup.node_id.isin(comparison_nodes.node_id)]
+                
+                compartment_nodes_ = compartment_nodes_.loc[compartment_nodes_[partition_type].isin(node_lookup[partition_type])]
+                compartment_nodes_.to_parquet(os.path.join(rain_folder,"highfid_nodes.gzip"), index=True, compression='GZIP')
+           
  
 if __name__ == "__main__":
     
@@ -408,14 +415,14 @@ if __name__ == "__main__":
     dts = [1]
     # dts = [5,10,20,50,100,300,1440,2,1,0.5]
     # dts = [1000,1440]
-    clusters = sorted(glob(os.path.join(sim_root,"*","*.geojson")))
+    partitions = sorted(glob(os.path.join(sim_root,"*","*.geojson")))
  
     jobs = []
     print('generating job scheduler')
-    for cluster in clusters:
-        cols = gpd.read_file(cluster).columns
+    for partition in partitions:
+        cols = gpd.read_file(partition).columns
         
-        cols = cols[cols.str.contains('cluster')]
+        cols = cols[cols.str.contains('partition')]
         for col in cols:
             if "L_L_sc" in col:
                 dts_ = dts
@@ -423,8 +430,8 @@ if __name__ == "__main__":
                 dts_ = [1]
             for dt in dts_:
                   jobs.append({'dt' : dt,
-                               'cluster' : col,
-                               'root' : os.path.split(cluster)[0],
+                               'partition' : col,
+                               'root' : os.path.split(partition)[0],
   			     'jobid' : str(jobid)})
     
     jobs = jobs[int(submi/submimax * len(jobs)):int((submi+1)/submimax * len(jobs))]    
@@ -433,7 +440,7 @@ if __name__ == "__main__":
             print('starting')
             print(job)
             
-            aggregate(root, job['root'], job['cluster'], catchment, dt_sim = job['dt'])
+            aggregate(root, job['root'], job['partition'], catchment, dt_sim = job['dt'])
             print('ending')
             print(job)
     
