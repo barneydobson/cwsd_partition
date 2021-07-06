@@ -35,7 +35,7 @@ def sim(cluster_root:str,
         
     DT_SIM = pd.Timedelta(value = dt_sim, unit = 'm') #Needs to match the same DT_SIM in orchestration
 
-    LAG = 200
+    LAG = 200 # Add padding to simulate after the storm has ended
     constants.MM_M2_TO_SIM_VOLUME = 1e-3 # m3
     constants.M3_S_TO_M3_DT = DT_SIM / pd.Timedelta('1s')
     
