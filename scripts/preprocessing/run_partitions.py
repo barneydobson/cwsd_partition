@@ -17,7 +17,7 @@ import partitioning
 #Calls different partitioning algorithms
 
 start_all = datetime.datetime.now()
-def create_clusters(desired_n: list,
+def create_partitions(desired_n: list,
                     methods: list,
                     root: str,
                     root_results: str,
@@ -25,9 +25,9 @@ def create_clusters(desired_n: list,
                     weighting: str = 'capacity',
                     repetition: int = 0
                     ):
-    """ Performs 7 different clustering algorithms on the data set for each n.
+    """ Performs 7 different partitioning algorithms on the data set for each n.
         methods can contain: 'sc','ac','km','ac_sc','km_sc','L_scn','L_L_sc','louv'
-        Returns geojsons of nodes and clusters for each n and each algorithm,
+        Returns geojsons of nodes and partitions for each n and each algorithm,
         as well as a cvs file of metrics for each algorithm.
     """
     
@@ -72,9 +72,9 @@ def create_clusters(desired_n: list,
     del nodes_fid, edges_fid
     
     
-    """Force clusters
+    """Force partitions
     """
-    #Keep lakes, outfalls and starting nodes for orifices and weirs out of clusters
+    #Keep lakes, outfalls and starting nodes for orifices and weirs out of partitions
 
     # ind = nodes_gdf.node_type.isin(['Outfall']) 
     ind = nodes_gdf.node_type.isin(['Outfall','Storage']) 
@@ -113,7 +113,7 @@ def create_clusters(desired_n: list,
         
     tot_nodes = len(G.nodes)
     
-    """Run clustering
+    """Run partitioning
     """
     times = []
     for method in methods:
@@ -146,15 +146,15 @@ def create_clusters(desired_n: list,
                 g_nodes += sg['nodes']
                 g_partitions += [x + num_p for x in sg['partitions']]
                 num_p = max(g_partitions) + 1
-            namestr = '_'.join(['cluster', method,'n',str(len(set(g_partitions)))])
+            namestr = '_'.join(['partition', method,'n',str(len(set(g_partitions)))])
             
             results_gdf[namestr] = pd.Series(index = g_nodes, data = g_partitions, name = namestr)
     
     
     times = pd.DataFrame(times)
     times.time = times.time.dt.total_seconds()
-    results_gdf.to_file(driver = 'GeoJSON', filename = os.path.join(repetition_results, 'clusters.geojson'))
-    times.to_csv(os.path.join(repetition_results,"cluster_timings.csv"),index=False)
+    results_gdf.to_file(driver = 'GeoJSON', filename = os.path.join(repetition_results, 'partitions.geojson'))
+    times.to_csv(os.path.join(repetition_results,"partition_timings.csv"),index=False)
     
     
     return results_gdf
@@ -183,4 +183,4 @@ repetitions = 20
 for repetition in range(repetitions):
     
     print('rep = ' + str(repetition))
-    create_clusters(desired_n, methods, root, root_results, location, weighting,repetition)
+    create_partitions(desired_n, methods, root, root_results, location, weighting,repetition)
