@@ -11,19 +11,15 @@ import pandas as pd
 import geopandas as gpd
 from matplotlib import pyplot as plt
 
-#Evaluate performance metrics for all nodes/arcs and merge them into geojson 
-#for saving
-
-#Plot relationship between node/arc size and NSE 
-
 
 root = os.path.join("C:\\", "Users", "bdobson", "Documents", "GitHub", "cwsd_sewer","data")
 catchment = "cranbrook"
 cluster = 'cluster_Louv_266'
+# rain = 'august'
 
 for rain, dt in zip(['august','january','august','january'], ['30','60','60','30']):
     driver = 'GeoJSON'
-    cluster_root = os.path.join(root,catchment,"results","2021-03-02",cluster,"sim_dt_" + dt + "_s")
+    cluster_root = os.path.join(root,catchment,"results","2021-06-07",cluster,"sim_dt_" + dt + "_s")
     results_root = os.path.join(cluster_root,rain)
     info_fid = os.path.join(results_root, "highfid_flows.gzip")
     flow_fid = os.path.join(results_root, "flows.gzip")
@@ -59,15 +55,18 @@ for rain, dt in zip(['august','january','august','january'], ['30','60','60','30
     mdf['val'] = mdf.val_x + mdf.val_y
     
     flows = pd.merge(flow_df[['arc','flow']].reset_index(), info_df[['arc','val']].reset_index(), left_on = ['date','arc'], right_on = ['time','arc'], how = 'right').dropna()
+    # flows.loc[flows.val == 0, 'val'] = 0.00001
     def f(x):
         if x.val.var() > 0:
-            obj = 1 - sum((x.flow - x.val)**2)/sum((x.val - x.val.mean())**2)
+            obj = 1 - sum((x.flow.rolling('300s').mean() - x.val)**2)/sum((x.val - x.val.mean())**2)
         else:
             obj = None
         return obj
     nse_flows = flows.groupby('arc').apply(f)
     
-
+    
+    
+    
     def f(x):
         if x.volume.var() > 0:
             obj = 1 - sum((x.volume - x.val)**2)/sum((x.volume - x.volume.mean())**2)
@@ -80,6 +79,8 @@ for rain, dt in zip(['august','january','august','january'], ['30','60','60','30
     
     nse_nodes = nodes.groupby('node').apply(f)
     
+    yt = [-10,-1,0,0.5,1]
+    
     nse_comp = pd.merge(flow_df.groupby('arc').max().flow.reset_index(), nse_flows.rename('nse').reset_index(), on='arc')
     f, axs = plt.subplots(1,2,figsize=(8,3.5))
     axs[0].axvspan(xmin=0,xmax=1,color='r',alpha=0.1)
@@ -89,6 +90,9 @@ for rain, dt in zip(['august','january','august','january'], ['30','60','60','30
     axs[0].set_xscale('symlog')
     axs[0].set_yscale('symlog')
     axs[0].set_ylim([-10,1])
+    axs[0].set_yticks(yt)
+    axs[0].set_yticklabels(yt)
+    axs[0].yaxis.grid(ls='--')
     axs[0].set_xlabel('Max Pipe Flow (m3/min)')
     axs[0].set_ylabel('NSE')
     
@@ -102,10 +106,14 @@ for rain, dt in zip(['august','january','august','january'], ['30','60','60','30
     axs[1].set_xscale('symlog')
     axs[1].set_yscale('symlog')
     axs[1].set_ylim([-10,1])
+    axs[1].set_yticks(yt)
+    axs[1].set_yticklabels(yt)
+    axs[1].yaxis.grid(ls='--')
+    axs[1].xaxis.grid(False)
     axs[1].set_xlim([3,50000])
     axs[1].set_xlabel('Max Compartment Volume (m3)')
     axs[1].set_ylabel('NSE')
-    axs[1].grid(False)
+    # axs[1].grid(False)
     f.tight_layout()
     f.savefig(os.path.join(results_root,'size_comparison.svg'))
     
@@ -116,3 +124,22 @@ for rain, dt in zip(['august','january','august','january'], ['30','60','60','30
     nodes_gdf_results = pd.merge(nodes_gdf, nse_nodes.reset_index(), left_on = 'compart_id', right_on = 'node').rename(columns={0 : 'nse'})
     nodes_gdf_results = pd.merge(nodes_gdf_results, infon_df.groupby(cluster).floodvol.sum().reset_index(), left_on = 'compart_id', right_on = cluster)
     nodes_gdf_results.to_file(os.path.join(results_root, "nodes_nse.geojson"),driver = driver)
+    
+    edges_gdf_results.loc[edges_gdf_results.nse < 0,'nse'] = 0
+    edges_gdf_results.nse.hist()
+    
+    
+    sum('hi')
+    
+    #Storage plots
+    # N = 4
+    # worst_floods = infon_df.groupby(cluster).floodvol.max()
+    # worst_floods = worst_floods.sort_values().iloc[-N:]
+    # f,axs = plt.subplots(int(N/2),2)
+    # for idx, ax in zip(worst_floods.index, axs.reshape(-1)):
+    #     df = infon_df.groupby(cluster).get_group(idx)
+    #     df.plot.scatter('volume','floodvol',ax=ax,marker='.')
+    #     maxo = df[['volume','floodvol']].max().max()
+    #     cstor = nodes_gdf.loc[nodes_gdf.compart_id == idx, 'storage']
+    #     ax.plot([0,maxo], [0,maxo] , 'r',linestyle='--',lw=2)
+    #     ax.plot([0,maxo], [-cstor,maxo-cstor],'c', linestyle='--',lw=2)
