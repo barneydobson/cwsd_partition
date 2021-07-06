@@ -74,3 +74,18 @@ results = simulate_cmd.sim(os.path.join(results_folder,
                                         "_".join(["sim","dt",str(int(dt*60)),"s"])),
                            rain_fid,
                            dt_sim = dt)
+
+#Plot (e.g.) the N largest flows
+N = 3
+flows_df = pd.DataFrame(results['flows'])
+flows_df.date = pd.to_datetime(flows_df.date)
+largest_arcs = flows_df.groupby('arc').mean().flow_out.sort_values().iloc[-N:]
+
+from matplotlib import pyplot as plt
+f, axs = plt.subplots(N,1)
+for (ax, (arc, flow)) in zip(axs, flows_df.loc[flows_df.arc.isin(largest_arcs.index)].groupby('arc')):
+    ax.plot(flow.set_index('date').flow_out)
+    ax.set_title(arc)
+    ax.set_xlabel('time')
+    ax.set_ylabel('flow')
+f.tight_layout()
