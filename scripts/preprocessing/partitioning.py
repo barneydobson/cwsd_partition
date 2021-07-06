@@ -58,7 +58,7 @@ def wrapper(adj_mat,
                     message="Changing the sparsity structure of a csr_matrix is expensive")
 
 
-    #Perform clustering
+    #Perform partitioning
     groups = cf(**params)
     
     return groups
@@ -73,7 +73,7 @@ def louvain(adj_mat: np.ndarray,
                 tol_aggregation: float = 0.001,
                 return_adj: bool = False,
                 **kwargs):
-        """ Performs louvain clustering
+        """ Performs louvain partitioning
             Returns groups, adj_mat
         """
         louvain = Louvain(modularity='dugue',
@@ -92,7 +92,7 @@ def spectral(adj_mat:np.ndarray,
              n: int = 200,
              n_init: int = 100,
              **kwargs):
-    """Performs spectral clustering and prints to an external file. 
+    """Performs spectral partitioning and prints to an external file. 
        If running on a pre-grouped set, include groups for correct labeling of nodes.
        Returns groups
     """
@@ -175,7 +175,7 @@ def L_L_sc(adj_mat : np.ndarray,
         x = x1
     x = split_groups_sc(adj_mat,
                                 groups = x,
-                                total_clusters=n,
+                                total_partitions=n,
                                 group_division=2,
                                 sort_groups=False)
     return x
@@ -195,7 +195,7 @@ def L_scn(adj_mat,
                                     return_adj = True)
         ta*=10
         
-    # Perform spectral clustering on the resulting adjacency matrix 
+    # Perform spectral partitioning on the resulting adjacency matrix 
     # to get the desired number of groups
     x2 = spectral(adj_mat_l, n=n)
     
@@ -207,20 +207,20 @@ def L_scn(adj_mat,
 
 def split_groups_sc(adj_mat:np.ndarray,
                     groups:np.ndarray,
-                    total_clusters,
+                    total_partitions,
                     group_division:int=2,
                     sort_groups:bool=False):
-    """ Performs spectral clustering within groups. Will continue to split 
+    """ Performs spectral partitioning within groups. Will continue to split 
         groups until the number of groups = total_clusters 
     
-        total_clusters is the number of desired clusters. 
-        group_division is the number of clusters into which each existing
+        total_partitions is the number of desired partitions. 
+        group_division is the number of partitions into which each existing
         group will be divided
         
         Returns groups
     """
  
-    while len(set(groups))<total_clusters:
+    while len(set(groups))<total_partitions:
         #Split the largest group
         group_num = np.argmax(np.bincount(groups))
         ind = groups == group_num
@@ -228,7 +228,7 @@ def split_groups_sc(adj_mat:np.ndarray,
         # Create the adjacency matrix for group.
         adj_mat_group=adj_mat[ind][:,ind] 
         
-        # perform specral clustering
+        # perform specral partitioning
         sc_groups=spectral(adj_mat_group,group_division) 
         
         #Update group numbers
