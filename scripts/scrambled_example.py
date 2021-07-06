@@ -13,6 +13,7 @@ import datetime
 import networkx as nx
 import numpy as np
 
+#Load CWSD modules
 repo_root = os.path.join("C:\\", "Users", "Barney", "Documents", "GitHub", "cwsd_partition")
 sys.path.append(os.path.join(repo_root, "scripts","preprocessing"))
 
@@ -68,6 +69,8 @@ aggregate_cmd.aggregate(os.path.join(repo_root, "data"),
                         demo = True)
 
 #Simulate
-results = simulate_cmd.sim(results_folder,
+results = simulate_cmd.sim(os.path.join(results_folder,
+                                        method,
+                                        "_".join(["sim","dt",str(int(dt*60)),"s"])),
                            rain_fid,
                            dt_sim = dt)
