@@ -12,11 +12,18 @@ import pandas as pd
 import datetime
 import networkx as nx
 import numpy as np
-repo_root = os.path.join("C:\\", "Users", "bdobson", "Documents", "GitHub", "cwsd_partition")
+
+repo_root = os.path.join("C:\\", "Users", "Barney", "Documents", "GitHub", "cwsd_partition")
 sys.path.append(os.path.join(repo_root, "scripts","preprocessing"))
 
 import partitioning
 import aggregate_cmd
+
+sys.path.append(os.path.join(repo_root, "scripts","orchestration"))
+import simulate_cmd
+
+#Specify rainfall timeseries (see data/cranbrook/raw)
+rain_fid = os.path.join(repo_root, "data", "cranbrook", "raw", "storms", "august.csv")
 
 #Load data
 edges_gdf = gpd.read_file(os.path.join(repo_root, "data", "cranbrook", "processed", "edges_gdf_scrambled.geojson"))
@@ -43,12 +50,24 @@ method = 'louv'
 x = partitioning.wrapper(nx.to_scipy_sparse_matrix(G), N_partitions, coords, method)
 nodes_gdf[method] = x
 
+#Preserve outfalls by putting them in their own partition (aggregation assumes this)
+outfalls = list(set(nodes_gdf.node_id).difference(edges_gdf.us_node_id))
+nodes_gdf.loc[nodes_gdf.node_id.isin(outfalls), method] = np.arange(nodes_gdf[method].max() + 1, nodes_gdf[method].max() + len(outfalls) + 1)
+
 #Save partitions
 nodes_gdf.to_file(driver = 'GeoJSON', filename = os.path.join(results_folder, 'partitions.geojson'))
 
-#Aggregate to physical model
+#Specify timestep
+dt = 1 # (minutes)
+
+#Aggregate to physical model (you can view the reduced model in results_folder)
 aggregate_cmd.aggregate(os.path.join(repo_root, "data"),
                         results_folder,
                         method,
-                        dt_sim = 1, # (minutes)
+                        dt_sim = dt, 
                         demo = True)
+
+#Simulate
+results = simulate_cmd.sim(results_folder,
+                           rain_fid,
+                           dt_sim = dt)
