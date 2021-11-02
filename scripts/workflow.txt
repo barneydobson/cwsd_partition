@@ -11,13 +11,13 @@ Run preprocessing to prepare clean network data:
 
    The output of this is 'edges_clean.geojson' and 'nodes_clean.geojson', we provide an example in ./data/Cranbrook/processed
 
-To create clusters (produces ./data/results/<date>/clusters.geojson) for :
+To create partitions (produces ./data/results/<date>/partitions.geojson) for :
 ./scripts/preprocessing/run_partitions.py
 
-To aggregate cluster categorisation into compartments for simulation:
+To aggregate partition categorisation into compartments for simulation:
 ./scripts/preprocessing/aggregate_cmd.py
 
-Run simulations for all clusters in ./data/results/<date>/clusters.geojson:
+Run simulations for all partition in ./data/results/<date>/partitions.geojson:
 ./scripts/orchestration/simulate_cmd.py
 
 Run comparison for a single simulation:
