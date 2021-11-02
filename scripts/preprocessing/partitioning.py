@@ -83,7 +83,10 @@ def louvain(adj_mat: np.ndarray,
                         tol_aggregation = tol_aggregation)
         x = louvain.fit_transform(adj_mat)
         if return_adj:
-            adj_mat_new = louvain.adjacency_ #Adjacency matrix between the groups
+            if 'adjacency_' in dir(louvain):
+                adj_mat_new = louvain.adjacency_ #Adjacency matrix between the groups (old version)
+            else:
+                adj_mat_new = louvain.aggregate_ #Adjacency matrix between the groups (new version)
             return x, adj_mat_new
         else:
             return x
@@ -136,7 +139,7 @@ def geo_cluster_sc(coords: np.array,
     if nn < n:
         x = split_groups_sc(adj_mat,
                             groups = x, 
-                            total_clusters = n, 
+                            total_partitions = n, 
                             group_division = 2)
     return x
 
@@ -211,7 +214,7 @@ def split_groups_sc(adj_mat:np.ndarray,
                     group_division:int=2,
                     sort_groups:bool=False):
     """ Performs spectral partitioning within groups. Will continue to split 
-        groups until the number of groups = total_clusters 
+        groups until the number of groups = total_partitions 
     
         total_partitions is the number of desired partitions. 
         group_division is the number of partitions into which each existing
