@@ -231,8 +231,12 @@ def split_groups_sc(adj_mat:np.ndarray,
         # Create the adjacency matrix for group.
         adj_mat_group=adj_mat[ind][:,ind] 
         
-        # perform specral partitioning
-        sc_groups=spectral(adj_mat_group,group_division) 
+        if adj_mat_group.shape[0] == 2:
+            #If only 2 nodes in group, just bisect
+            sc_groups = np.array([0,1])
+        else:
+            # perform specral partitioning
+            sc_groups=spectral(adj_mat_group,group_division) 
         
         #Update group numbers
         ind = np.where(ind)[0]
